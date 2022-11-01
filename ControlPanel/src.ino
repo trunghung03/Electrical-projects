@@ -1,9 +1,16 @@
 #include <U8glib.h> // OLED Display library
 #include <virtuabotixRTC.h> // Clock library
 
+#include "DHT.h"
+
+// Temperature/humidity sensor
+#define DHTPIN 2
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
 // Format OLED display
 #define SLOT_WIDTH 20
-#define Y_OFFSET 30
+#define Y_OFFSET 32
 
 // Timezone selection pins
 #define BUTTON1 9
@@ -51,7 +58,7 @@ void draw(void) {
 
   switch (currentPlace) {
     case HCM: 
-    u8g.drawStr(22, 11, "Ho Chi Minh");
+    u8g.drawStr(0, 11, "Ho Chi Minh");
     break;
 
     case NY: 
@@ -70,6 +77,16 @@ void draw(void) {
     break;
   }
 
+  // Print temperature
+  int temp = static_cast<int>(dht.readTemperature());
+  String tempformatted = String(temp) + " C";
+  u8g.drawStr(95, 11, tempformatted.c_str());
+
+  // Hack to print degree symbol
+  u8g.setFont(u8g_font_7x14B);
+  u8g.setPrintPos(112, 11);
+  u8g.write(0xB0);
+
   // Print time
   u8g.setFont(u8g_font_courB18);
   u8g.drawStr(0, Y_OFFSET, String(Hrs).c_str());
@@ -80,6 +97,9 @@ void draw(void) {
 }
 
 void setup(void) {
+  // Set temperature sensor
+  dht.begin();
+
   //Set Pull up resistor
   pinMode(BUTTON1, INPUT);
   digitalWrite(BUTTON1, HIGH);
@@ -93,7 +113,7 @@ void setup(void) {
   pinMode(BUTTON4, INPUT);
   digitalWrite(BUTTON4, HIGH);
 
-  //myRTC.setDS1302Time(0, 21, 13, 6, 14, 10, 2022);
+  myRTC.setDS1302Time(0, 21, 13, 6, 14, 10, 2022);
   // seconds, minutes, hours, day of the week, day of the month, month, year
   // Setup once to sync the RTC clock
 
