@@ -18,7 +18,8 @@ DHT dht(DHTPIN, DHTTYPE);
 #define BUTTON3 11
 #define BUTTON4 12
 
-#define LEDPIN 4          // LED pin
+#define LEDPIN 3          // LED pin
+#define FADESPEED 5      // LED fade speed
 #define LIGHTSENSORPIN A0  // Light sensor analog pin
 #define LIGHTTHRESHOLD 50  // Threshold where the light sensor will activate
 #define IRSENSORPIN 5     // IR pin
@@ -28,10 +29,28 @@ virtuabotixRTC myRTC(6, 7, 8); // Create real time clock object
 
 enum place {HCM, NY, LON, SYD}; // List of selectable timezone
 enum place currentPlace = HCM; // Default timezone
-bool LEDON = false;
+bool LEDON = false; // Set variable to keep track of LED status
+bool fullBrightness = false; // Keep track of LED brightness
 
 inline int positive_modulo(int i, int n) {
-    return (i % n + n) % n;
+  return (i % n + n) % n;
+}
+
+void fadeLED(boolean turnOn, int fadeSpeed) {
+  if (turnOn) {
+    for (int i = 0; i < 256; i++) {
+      analogWrite(LEDPIN, i);
+      delay(fadeSpeed);
+    }
+    fullBrightness = true;
+  }
+  else {
+    for (int i = 255; i > -1; i--) {
+      analogWrite(LEDPIN, i);
+      delay(fadeSpeed);
+    }
+    fullBrightness = false;
+  }
 }
 
 enum place getPlace() {
@@ -113,7 +132,7 @@ void setup(void) {
   pinMode(BUTTON4, INPUT);
   digitalWrite(BUTTON4, HIGH);
 
-  myRTC.setDS1302Time(0, 21, 13, 6, 14, 10, 2022);
+  //myRTC.setDS1302Time(0, 21, 13, 6, 14, 10, 2022);
   // seconds, minutes, hours, day of the week, day of the month, month, year
   // Setup once to sync the RTC clock
 
@@ -144,7 +163,7 @@ void loop(void) {
     draw();
   } while( u8g.nextPage() );
 
-  // Sensor loop
+  // LED loop
   float LSensor = analogRead(LIGHTSENSORPIN);  // measured in lux
 
   if (LEDON == true) {
@@ -153,14 +172,20 @@ void loop(void) {
   float IRSensor = digitalRead(IRSENSORPIN);
 
   if (LSensor < LIGHTTHRESHOLD && IRSensor == 1) {  // If no light and sensor is on (IR on is 0 for some reasons)
-    digitalWrite(LEDPIN, HIGH);
+    // LED fades on
+    if (!fullBrightness) { // If light is already on then no fade on
+      fadeLED(true, FADESPEED);
+    }
     LEDON = true;
   } else {
-    digitalWrite(LEDPIN, LOW);
+    // LED fades off
+    if (fullBrightness) { // If light is already off then no fade off
+      fadeLED(false, FADESPEED);
+    }
     LEDON = false;
   }
   
   // rebuild the picture after some delay
-  delay(100); 
+  delay(50); 
 }
 
