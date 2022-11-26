@@ -1,138 +1,270 @@
 #include <U8glib.h>          // OLED Display library
-#include <virtuabotixRTC.h>  // Clock library
-
-#include "DHT.h"
-
-// Temperature/humidity sensor
-#define DHTPIN 2
-#define DHTTYPE DHT11
-DHT dht(DHTPIN, DHTTYPE);
+#include <RTClib.h>
+#include <Keypad.h>
 
 // Format OLED display
 #define SLOT_WIDTH 20
 #define Y_OFFSET 32
 
-// Cycle through timezone button
-#define BUTTON1 9
-
-#define LEDPIN 3           // LED pin
-#define FADESPEED 5        // LED fade speed
-#define LIGHTSENSORPIN A0  // Light sensor analog pin
-#define LIGHTTHRESHOLD 50  // Threshold where the light sensor will activate
-#define IRSENSORPIN 5      // IR pin
-
+RTC_DS1307 rtc;
 U8GLIB_SSD1306_128X32 u8g(U8G_I2C_OPT_NONE);  // A4:sda A5:scl
-virtuabotixRTC myRTC(6, 7, 8);                // Create real time clock object, pinput: clk, dat, rst
 
-#define PLACES 4
-enum place { HCM,
-             NY,
-             LON,
-             SYD };                  // List of selectable timezone
-enum place currentPlace = HCM;       // Default timezone
-int buttonState = HIGH;                     // Capture state of timezone input pin
-unsigned long lastDebounceTime = 0;  // Last time timezone pin was toggled
-unsigned long debounceDelay = 50;    // debounce time, increase if output flickers
+// LED thing
+#define LED0 0
+#define LED1 1
+#define LED2 2
+#define LED3 3
+#define LED4 4
+#define LED5 5
 
-bool LEDON = false;           // Set variable to keep track of LED status
-bool fullBrightness = false;  // Keep track of LED brightness
+bool led0On = false;
+bool led1On = false;
+bool led2On = false;
+bool led3On = false;
+bool led4On = false;
+bool led5On = false;
 
-inline int positive_modulo(int i, int n) {
-  return (i % n + n) % n;
-}
+// LED switches thing
+#define LED0SW A0
+#define LED1SW A1
+#define LED2SW A2
+#define LED3SW A3
 
-void fadeLED(boolean turnOn, int fadeSpeed) {
-  if (turnOn) {
-    for (int i = 0; i < 256; i++) {
-      analogWrite(LEDPIN, i);
-      delay(fadeSpeed);
-    }
-    fullBrightness = true;
-  } else {
-    for (int i = 255; i > -1; i--) {
-      analogWrite(LEDPIN, i);
-      delay(fadeSpeed);
-    }
-    fullBrightness = false;
-  }
-}
+int led0Flag = LOW;
+int led1Flag = LOW;
+int led2Flag = LOW;
+int led3Flag = LOW;
 
-enum place getPlace() {
-  int reading = digitalRead(BUTTON1);
+// Keypad thing
+const byte ROWS = 4; //four rows
+const byte COLS = 4; //four columns
+//define the cymbols on the buttons of the keypads
+char hexaKeys[ROWS][COLS] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'+','0','-','D'}
+};
+byte colPins[COLS] = {9, 8, 7, 6}; //connect to the row pinouts of the keypad
+byte rowPins[ROWS] = {13, 12, 11, 10}; //connect to the column pinouts of the keypad
 
-  if (reading == LOW) {
-    if (buttonState == HIGH) {
-      currentPlace = (currentPlace + 1) % 4;
-    }
-  }
-  buttonState = reading;
-}
+//initialize an instance of class NewKeypad
+Keypad keypad = Keypad( makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
 
-void draw(void) {
+// Alarm thing
+bool alarmSetup = false;
+bool toggleTime = false; // if false then change hour, true change minute
+
+int alarmHour = 0;
+int alarmMinute = 0;
+int alarmSecond = 0;
+
+// Functions
+void drawAlarm(void) {
+
   u8g.setFont(u8g_font_unifont);
-  uint8_t Hrs = myRTC.hours;
-
-  // Print place depending on current selection
-  getPlace();
-
-  switch (currentPlace) {
-    case HCM:
-      u8g.drawStr(0, 11, "Ho Chi Minh");
-      break;
-
-    case NY:
-      u8g.drawStr(0, 11, "New York");
-      Hrs = positive_modulo(Hrs - 11, 24);  //Used a special function to make sure there's no negative modulo
-      break;
-
-    case LON:
-      u8g.drawStr(0, 11, "London");
-      Hrs = positive_modulo(Hrs - 6, 24);
-      break;
-
-    case SYD:
-      u8g.drawStr(0, 11, "Sydney");
-      Hrs = positive_modulo(Hrs + 4, 24);
-      break;
-  }
-
-  // Print temperature
-  int temp = static_cast<int>(dht.readTemperature());
-  String tempformatted = String(temp) + " C";
-  u8g.drawStr(95, 11, tempformatted.c_str());
-
-  // Hack to print degree symbol
-  u8g.setFont(u8g_font_7x14B);
-  u8g.setPrintPos(112, 11);
-  u8g.write(0xB0);
+  u8g.drawStr(0, 11, "Setting alarm");
 
   // Print time
   u8g.setFont(u8g_font_courB18);
-  u8g.drawStr(0, Y_OFFSET, String(Hrs).c_str());
+  u8g.drawStr(0, Y_OFFSET, String(alarmHour).c_str());
   u8g.drawStr(SLOT_WIDTH + 10, Y_OFFSET, ":");
-  u8g.drawStr(SLOT_WIDTH * 2, Y_OFFSET, String(myRTC.minutes).c_str());
+  u8g.drawStr(SLOT_WIDTH * 2, Y_OFFSET, String(alarmMinute).c_str());
   u8g.drawStr(SLOT_WIDTH * 3 + 10, Y_OFFSET, ":");
-  u8g.drawStr(SLOT_WIDTH * 4, Y_OFFSET, String(myRTC.seconds).c_str());
+  u8g.drawStr(SLOT_WIDTH * 4, Y_OFFSET, String(alarmSecond).c_str());
+}
+
+void drawClock(void) {
+  DateTime now = rtc.now();
+
+  u8g.setFont(u8g_font_unifont);
+  u8g.drawStr(0, 11, "Ho Chi Minh");
+
+  // Print time
+  u8g.setFont(u8g_font_courB18);
+  u8g.drawStr(0, Y_OFFSET, String(now.hour()).c_str());
+  u8g.drawStr(SLOT_WIDTH + 10, Y_OFFSET, ":");
+  u8g.drawStr(SLOT_WIDTH * 2, Y_OFFSET, String(now.minute()).c_str());
+  u8g.drawStr(SLOT_WIDTH * 3 + 10, Y_OFFSET, ":");
+  u8g.drawStr(SLOT_WIDTH * 4, Y_OFFSET, String(now.second()).c_str());
+}
+
+void clock(char key) {
+  if (key == '0') {
+    alarmSetup = !alarmSetup;
+  }
+
+  if (key == 'C') {
+      alarmHour = 0;
+      alarmMinute = 0;
+  }
+
+  if (alarmSetup) {
+    if (key == 'D') {
+      toggleTime = !toggleTime;
+    }
+
+    if (key == '+') {
+      if (!toggleTime) {
+          alarmHour += 1;
+      } else {
+          alarmMinute += 1;
+      }
+    }
+
+    if (key == '-') {
+      if (!toggleTime) {
+          alarmHour -= 1;
+      } else {
+          alarmMinute -=1;
+      }
+    }
+  }
+
+  // Boundchecking
+  alarmHour = (alarmHour > 24) ? 24 : alarmHour;
+  alarmHour = (alarmHour < 0) ? 0 : alarmHour;
+
+}
+
+void led(char key) {
+  if (key == '1') {
+    if (led0On) {
+      led0On = false;
+      digitalWrite(LED0, LOW);
+    } else {
+      led0On = true;
+      digitalWrite(LED0, HIGH);
+    }
+  }
+
+  if (key == '2') {
+    if (led1On) {
+      led1On = false;
+      digitalWrite(LED1, LOW);
+    } else {
+      led1On = true;
+      digitalWrite(LED1, HIGH);
+    }
+  }
+
+  if (key == '3') {
+    if (led2On) {
+      led2On = false;
+      digitalWrite(LED2, LOW);
+    } else {
+      led2On = true;
+      digitalWrite(LED2, HIGH);
+    }
+  }
+
+  if (key == '4') {
+    if (led3On) {
+      led3On = false;
+      digitalWrite(LED3, LOW);
+    } else {
+      led3On = true;
+      digitalWrite(LED3, HIGH);
+    }
+  }
+
+  if (key == '5') {
+    if (led4On) {
+      led4On = false;
+      digitalWrite(LED4, LOW);
+    } else {
+      led4On = true;
+      digitalWrite(LED4, HIGH);
+    }
+  }
+
+  if (key == '6') {
+    if (led5On) {
+      led5On = false;
+      digitalWrite(LED5, LOW);
+    } else {
+      led5On = true;
+      digitalWrite(LED5, HIGH);
+    }
+  }
+}
+
+void ledsw(void) {
+  int led0reading = digitalRead(LED0SW);
+  if (led0reading != led0Flag) {
+    if (led0On) {
+      digitalWrite(LED0, LOW);
+    } else {
+      digitalWrite(LED0, HIGH);
+    }
+    led0On = !led0On;
+  }
+  led0Flag = led0reading;
+
+  int led1reading = digitalRead(LED1SW);
+  if (led1reading != led1Flag) {
+    if (led1On) {
+      digitalWrite(LED1, LOW);
+    } else {
+      digitalWrite(LED1, HIGH);
+    }
+    led1On = !led1On;
+  }
+  led1Flag = led1reading;
+
+  int led2reading = digitalRead(LED2SW);
+  if (led2reading != led2Flag) {
+    if (led2On) {
+      digitalWrite(LED2, LOW);
+    } else {
+      digitalWrite(LED2, HIGH);
+    }
+    led2On = !led2On;
+  }
+  led2Flag = led2reading;
+
+  int led3reading = digitalRead(LED3SW);
+  if (led3reading != led3Flag) {
+    if (led3On) {
+      digitalWrite(LED3, LOW);
+    } else {
+      digitalWrite(LED3, HIGH);
+    }
+    led3On = !led3On;
+  }
+  led3Flag = led3reading;
 }
 
 void setup(void) {
-  Serial.begin(9600);
+  //Serial.begin(9600);
 
-  // Set temperature sensor
-  dht.begin();
+  // LED setup
+  pinMode(LED0, OUTPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
+  pinMode(LED3, OUTPUT);
+  pinMode(LED4, OUTPUT);
+  pinMode(LED5, OUTPUT);
 
-  //Set Pull up resistor
-  pinMode(BUTTON1, INPUT);
-  digitalWrite(BUTTON1, HIGH);
+  // LEDSW setup 
+  pinMode(LED0SW, INPUT_PULLUP);
+  pinMode(LED1SW, INPUT_PULLUP);
+  pinMode(LED2SW, INPUT_PULLUP);
+  pinMode(LED3SW, INPUT_PULLUP);
 
-  //myRTC.setDS1302Time(0, 21, 13, 6, 14, 10, 2022);
-  // seconds, minutes, hours, day of the week, day of the month, month, year
-  // Setup once to sync the RTC clock
+  // RTC Setup
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    Serial.flush();
+    while (1) delay(10);
+  }
 
-  pinMode(LIGHTSENSORPIN, INPUT);
-  pinMode(IRSENSORPIN, INPUT);
-  pinMode(LEDPIN, OUTPUT);
+  if (! rtc.isrunning()) {
+    Serial.println("RTC is NOT running, let's set the time!");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
 
+  // OLED screen setup
   // assign default color value
   if (u8g.getMode() == U8G_MODE_R3G3B2) {
     u8g.setColorIndex(255);  // white
@@ -149,31 +281,18 @@ void loop(void) {
   // picture loop
   u8g.firstPage();
   do {
-    myRTC.updateTime();
-    draw();
+    if (alarmSetup) {
+      drawAlarm();
+    } else {
+      drawClock();
+    }
   } while (u8g.nextPage());
 
-  // LED loop
-  float LSensor = analogRead(LIGHTSENSORPIN);  // measured in lux
-
-  if (LEDON == true) {
-    LSensor = 0;  // If led is on then Light sensor will always be off
-  }
-  float IRSensor = digitalRead(IRSENSORPIN);
-
-  if (LSensor < LIGHTTHRESHOLD && IRSensor == 1) {  // If no light and sensor is on (IR on is 0 for some reasons)
-    // LED fades on
-    if (!fullBrightness) {  // If light is already on then no fade on
-      fadeLED(true, FADESPEED);
-    }
-    LEDON = true;
-  } else {
-    // LED fades off
-    if (fullBrightness) {  // If light is already off then no fade off
-      fadeLED(false, FADESPEED);
-    }
-    LEDON = false;
-  }
+  char key = keypad.getKey();
+  Serial.println(key);
+  clock(key);
+  led(key);
+  ledsw();
 
   // rebuild the picture after some delay
   delay(50);
