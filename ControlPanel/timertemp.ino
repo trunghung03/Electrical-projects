@@ -3,17 +3,27 @@
 #include <Keypad.h>
 
 // Define the connections pins
-#define CLK 0
-#define DIO 1
+// Alarm display pins
+#define CLK0 0
+#define DIO0 1
+// Temp display pins
+#define CLK1 2
+#define DIO1 3
 
-TM1637Display display = TM1637Display(CLK, DIO); // init clock
+// 7-segment display
+TM1637Display display0 = TM1637Display(CLK0, DIO0); // init display
+TM1637Display display1 = TM1637Display(CLK1, DIO1); // init display
 const uint8_t allOff[] = {SEG_G, SEG_G, SEG_G, SEG_G};
 
-bool alarmIsOn = false;
+// Curtain alarm
+bool alarmIsOn = false; 
 bool toggleTime = false; // if false then change hour, true change minute
 
 int hour = 10;
 int minute = 10;
+
+// temp
+int temp = 20;
 
 // Keypad thing
 const byte ROWS = 4; //four rows
@@ -72,29 +82,50 @@ void clock(char key) {
 
 }
 
+void changeTemp(char key) {
+  if (key == '1') {
+    temp += 1;
+  }
+  if (key == '2') {
+    temp -= 1;
+  }
+}
+
 void setup() {
 	// Set the display brightness (0-7)
-	display.setBrightness(5);
+	display0.setBrightness(5);
+  display1.setBrightness(5);
 	
 	// Clear the display
-	display.clear();
+	display0.clear();
+  display1.clear();
 }
 
 void loop() {
 	// Get current date and time
 	
   char key = keypad.getKey();
-  clock(key);
+  
+  if (key == '3') {
+    display0.clear();
+    display1.clear();
+  }
 
+  clock(key);
+  changeTemp(key);
   
 	// Create time format to display
 	int displaytime = (hour * 100) + minute;
 
-
+  // Display alarm
   if (alarmIsOn) {
 	  // Display the current time in 24 hour format with leading zeros and a center colon enabled
-	  display.showNumberDecEx(displaytime, 0b11100000, true);
+	  display0.showNumberDecEx(displaytime, 0b11100000, true);
   } else {
-    display.setSegments(allOff);
+    display0.setSegments(allOff);
   }
+
+  // Display temp
+  display1.showNumberDec(temp, false, 2, 1);
+  
 }
