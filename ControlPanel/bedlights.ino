@@ -1,7 +1,18 @@
-#define LEDPIN 3           // LED pin
-#define FADESPEED 5        // LED fade speed
-#define LIGHTSENSORPIN A0  // Light sensor analog pin
+//------------------------------------------------------------------------------//
+// Change this
+#define FADESPEED 5        // Fadespeed
+// More is slower, less is faster
+// This is the time that the Arduino will wait before decreasing/increasing brightness
+// (But it's in milisecond, so it's really fast
+
 #define LIGHTTHRESHOLD 50  // Threshold where the light sensor will activate
+// Measured in lux 
+// More is brighter, less is darker (50 is about a bright room)
+// https://en.wikipedia.org/wiki/Lux (there's a table with the common lux value in different condition)
+//------------------------------------------------------------------------------//
+
+#define LEDPIN 3           // LED pin
+#define LIGHTSENSORPIN A0  // Light sensor analog pin
 #define IRSENSORPIN 5      // IR pin
 
 bool LEDON = false;           // Set variable to keep track of LED status
