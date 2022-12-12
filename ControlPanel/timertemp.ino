@@ -4,8 +4,8 @@
 
 // Define the connections pins
 // Alarm display pins
-#define CLK0 0
-#define DIO0 1
+#define CLK0 4
+#define DIO0 5
 // Temp display pins
 #define CLK1 2
 #define DIO1 3
@@ -17,10 +17,15 @@ const uint8_t allOff[] = {SEG_G, SEG_G, SEG_G, SEG_G};
 
 // Curtain alarm
 bool alarmIsOn = false; 
-bool toggleTime = false; // if false then change hour, true change minute
 
-int hour = 10;
-int minute = 10;
+int hour = 23;
+int minute = 30;
+
+typedef enum {PLUS, MINUS, PLUSFAST, MINUSFAST, NONE} alarmChangeState;
+alarmChangeState changeState = NONE;
+
+int previousTime = 0;
+int interval = 150;
 
 // temp
 int temp = 20;
@@ -41,45 +46,40 @@ byte rowPins[ROWS] = {13, 12, 11, 10}; //connect to the column pinouts of the ke
 //initialize an instance of class NewKeypad
 Keypad keypad = Keypad( makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
 
-void clock(char key) {
-  if (key == '0') {
-    alarmIsOn = !alarmIsOn;
+void alarmRollover() {
+  // Increase hour when minute reaches 60
+  if (minute >= 60) {
+    minute -= 60;
+    hour += 1;
+  }
+  // Decrease hour when minute reaches below 0
+  if (minute < 0) {
+    minute += 60;
+    hour -= 1;
   }
 
-  if (key == 'C') {
-      hour = 0;
-      minute = 0;
+  // wraparound
+  hour = (hour > 23) ? 0 : hour;
+  hour = (hour < 0) ? 23 : hour;
+}
+
+void changingTime() {
+  switch (changeState) {
+    case PLUS:
+      minute += 5;
+      break;
+    case MINUS:
+      minute -= 5;
+      break;
+    case PLUSFAST:
+      minute += 15;
+      break;
+    case MINUSFAST:
+      minute -= 15;
+      break;
+    case NONE:
+      break;
   }
-
-  if (alarmIsOn) {
-    if (key == 'D') {
-      toggleTime = !toggleTime;
-    }
-
-    if (key == '+') {
-      if (!toggleTime) {
-          hour += 1;
-      } else {
-          minute += 5;
-      }
-    }
-
-    if (key == '-') {
-      if (!toggleTime) {
-          hour -= 1;
-      } else {
-          minute -= 5;
-      }
-    }
-  }
-
-  // Boundchecking
-  hour = (hour > 24) ? 24 : hour;
-  hour = (hour < 0) ? 0 : hour;
-
-  minute = (minute > 60) ? 60 : minute;
-  minute = (minute < 0) ? 0 : minute;
-
 }
 
 void changeTemp(char key) {
@@ -99,20 +99,28 @@ void setup() {
 	// Clear the display
 	display0.clear();
   display1.clear();
+
+  keypad.setHoldTime(1000);
+  keypad.addEventListener(keypadEvent);
 }
 
-void loop() {
-	// Get current date and time
-	
+void loop() {	
   char key = keypad.getKey();
   
+  // clear screen
   if (key == '3') {
     display0.clear();
     display1.clear();
   }
 
-  clock(key);
-  changeTemp(key);
+  // handling the time of clock
+  int currentTime = millis();
+  if (currentTime - previousTime >= interval) {
+    previousTime = currentTime;
+
+    changingTime();
+    alarmRollover();
+  }
   
 	// Create time format to display
 	int displaytime = (hour * 100) + minute;
@@ -127,5 +135,48 @@ void loop() {
 
   // Display temp
   display1.showNumberDec(temp, false, 2, 1);
-  
+}
+
+// Taking care of some special events.
+void keypadEvent(KeypadEvent key){
+    switch (keypad.getState()){
+    case PRESSED:
+      // clock display
+      if (key == '+') {
+          changeState = PLUS;
+      }
+      if (key == '-') {
+          changeState = MINUS;
+      }
+      if (key == '0') {
+        alarmIsOn = !alarmIsOn;
+      }
+
+      // temp display
+      if (key == '1') {
+        temp += 1;
+      }
+      if (key == '2') {
+        temp -= 1;
+      }
+      break;
+
+    case RELEASED:
+      if (key == '+' || key == '-') {
+        changeState = NONE;
+        interval = 150;
+      }
+      break;
+
+    case HOLD:
+      if (key == '+') {
+        changeState = PLUSFAST;
+        interval = 100;
+      }
+      if (key == '-') {
+        changeState = MINUSFAST;
+        interval = 100;
+      }
+      break;
+    }
 }
