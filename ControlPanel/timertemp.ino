@@ -4,11 +4,11 @@
 
 // Define the connections pins
 // Alarm display pins
-#define CLK0 4
-#define DIO0 5
+#define CLK0 7
+#define DIO0 8
 // Temp display pins
-#define CLK1 2
-#define DIO1 3
+#define CLK1 9
+#define DIO1 10
 
 // 7-segment display
 TM1637Display display0 = TM1637Display(CLK0, DIO0); // init display
@@ -31,17 +31,15 @@ int interval = 150;
 int temp = 20;
 
 // Keypad thing
-const byte ROWS = 4; //four rows
-const byte COLS = 4; //four columns
+const byte ROWS = 2; //four rows
+const byte COLS = 3; //four columns
 //define the cymbols on the buttons of the keypads
 char hexaKeys[ROWS][COLS] = {
-  {'1','2','3','A'},
-  {'4','5','6','B'},
-  {'7','8','9','C'},
-  {'+','0','-','D'}
+  {'1','2','3'},
+  {'+','-','0'},
 };
-byte colPins[COLS] = {9, 8, 7, 6}; //connect to the row pinouts of the keypad
-byte rowPins[ROWS] = {13, 12, 11, 10}; //connect to the column pinouts of the keypad
+byte colPins[COLS] = {4, 3, 2}; //connect to the row pinouts of the keypad
+byte rowPins[ROWS] = {6, 5}; //connect to the column pinouts of the keypad
 
 //initialize an instance of class NewKeypad
 Keypad keypad = Keypad( makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
@@ -92,6 +90,7 @@ void changeTemp(char key) {
 }
 
 void setup() {
+  Serial.begin(9600);
 	// Set the display brightness (0-7)
 	display0.setBrightness(5);
   display1.setBrightness(5);
