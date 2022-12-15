@@ -2,19 +2,20 @@
 
 #include <Keypad.h>
 
-const uint8_t ROWS = 4;
-const uint8_t COLS = 4;
-char keys[ROWS][COLS] = {
-  { '1', '2', '3', 'A' },
-  { '4', '5', '6', 'B' },
-  { '7', '8', '9', 'C' },
-  { '*', '0', '#', 'D' }
+// Keypad thing
+const byte ROWS = 3; //four rows
+const byte COLS = 3; //four columns
+//define the cymbols on the buttons of the keypads
+char hexaKeys[ROWS][COLS] = {
+  {'1','2','3'},
+  {'4','5','6'},
+  {'7','8','9'},
 };
 
-uint8_t colPins[COLS] = { A1, A0, 12, 13 }; // Pins connected to C1, C2, C3, C4
-uint8_t rowPins[ROWS] = { A5, A4, A3, A2 }; // Pins connected to R1, R2, R3, R4
+uint8_t colPins[COLS] = { A2, A1, A0 }; // Pins connected to C1, C2, C3, C4
+uint8_t rowPins[ROWS] = { A5, A4, A3 }; // Pins connected to R1, R2, R3, R4
 
-Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+Keypad keypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
 #define LED1 5
 bool led1On = false;
@@ -88,6 +89,9 @@ void setup(){
 
 void loop(){
   char key = keypad.getKey();
+
+  if (key != NO_KEY)
+    Serial.println(key);
 
   if (isHold1) {
     int currentTime = millis();
