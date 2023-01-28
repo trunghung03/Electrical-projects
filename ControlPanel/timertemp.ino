@@ -4,11 +4,11 @@
 
 // Define the connections pins
 // Alarm display pins
-#define CLK0 7
-#define DIO0 8
+#define CLK0 2
+#define DIO0 4
 // Temp display pins
-#define CLK1 9
-#define DIO1 10
+#define CLK1 3
+#define DIO1 5
 
 // 7-segment display
 TM1637Display display0 = TM1637Display(CLK0, DIO0); // init display
@@ -38,8 +38,8 @@ char hexaKeys[ROWS][COLS] = {
   {'1','2','3'},
   {'+','-','0'},
 };
-byte colPins[COLS] = {4, 3, 2}; //connect to the row pinouts of the keypad
-byte rowPins[ROWS] = {6, 5}; //connect to the column pinouts of the keypad
+byte colPins[COLS] = {10, 9, 8}; //connect to the row pinouts of the keypad
+byte rowPins[ROWS] = {7, 6}; //connect to the column pinouts of the keypad
 
 //initialize an instance of class NewKeypad
 Keypad keypad = Keypad( makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
@@ -91,19 +91,19 @@ void changeTemp(char key) {
 
 void setup() {
   Serial.begin(9600);
-	// Set the display brightness (0-7)
-	display0.setBrightness(5);
+  // Set the display brightness (0-7)
+  display0.setBrightness(5);
   display1.setBrightness(5);
-	
-	// Clear the display
-	display0.clear();
+  
+  // Clear the display
+  display0.clear();
   display1.clear();
 
   keypad.setHoldTime(1000);
   keypad.addEventListener(keypadEvent);
 }
 
-void loop() {	
+void loop() { 
   char key = keypad.getKey();
   
   // clear screen
@@ -121,13 +121,13 @@ void loop() {
     alarmRollover();
   }
   
-	// Create time format to display
-	int displaytime = (hour * 100) + minute;
+  // Create time format to display
+  int displaytime = (hour * 100) + minute;
 
   // Display alarm
   if (alarmIsOn) {
-	  // Display the current time in 24 hour format with leading zeros and a center colon enabled
-	  display0.showNumberDecEx(displaytime, 0b11100000, true);
+    // Display the current time in 24 hour format with leading zeros and a center colon enabled
+    display0.showNumberDecEx(displaytime, 0b11100000, true);
   } else {
     display0.setSegments(allOff);
   }
